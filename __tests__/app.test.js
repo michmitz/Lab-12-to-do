@@ -6,48 +6,123 @@ const fakeRequest = require('supertest');
 const app = require('../lib/app');
 const client = require('../lib/client');
 
-describe('app routes', () => {
-  beforeAll(done => {
-    return client.connect(done);
-  });
+describe('routes', () => {
+  let token;
 
-  beforeEach(() => {
-    // TODO: ADD DROP SETUP DB SCRIPT
+  const newTodo = {
+    id: 4,
+    todo: 'wash dishes',
+    completed: false,
+    owner_id: 2,
+  };
+
+  beforeAll(async done => {
     execSync('npm run setup-db');
+
+    client.connect();
+
+    const signInData = await fakeRequest(app)
+      .post('/auth/signup')
+      .send({
+        email: 'jon@user.com',
+        password: '1234'
+      });
+    
+    token = signInData.body.token;
+
+    return done();
   });
 
   afterAll(done => {
     return client.end(done);
   });
 
-  test('returns todos', async() => {
-
-    const expectation = [
-      {
-        id: 1,
-        todo: 'clean fridge',
-        completed: false,
-        owner_id: 1
-      },
-      {
-        id: 2,
-        todo: 'sweep',
-        completed: false,
-        owner_id: 1
-      },
-      {
-        id: 3,
-        todo: 'exercise',
-        completed: false,
-        owner_id: 1
-      }
-    ];
+  test('returns a new todo when creating new todo', async(done) => {
 
     const data = await fakeRequest(app)
-      .get('/todos')
+      .post('/api/todos')
+      .send(newTodo)
+      .set('Authorization', token)
       .expect('Content-Type', /json/)
       .expect(200);
 
-    expect(data.body).toEqual(expectation);
+    expect(data.body).toEqual(newTodo);
+
+    done();
+  });
+
+  test('returns all todos for the user when hitting GET /todos', async(done) => {
+    const expected = [
+      {
+        id: 4,
+        todo: 'wash dishes',
+        completed: false,
+        owner_id: 2
+      },
+    ];
+
+    const data = await fakeRequest(app)
+      .get('/api/todos')
+      .set('Authorization', token)
+      .expect('Content-Type', /json/)
+      .expect(200);
+
+    expect(data.body).toEqual(expected);
+
+    done();
+  });
+
+  test('updates the todo property completed from false to true when hitting PUT /todos/:id', async(done) => {
+    const expected = {
+      id: 4,
+      todo: 'Testing!',
+      completed: true,
+      owner_id: 2,
+    };
+    const data = await fakeRequest(app)
+      .put('/api/todos/4')
+      .send({ todo: 'Testing!', completed: true })
+      .set('Authorization', token)
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(data.body).toEqual(expected);
+    done();
   });
 });
+
+
+
+
+// test('updates a single todo for the user when hitting PUT /todos/:id', async(done) => {
+//   const newTodo = {
+//     id: 4,
+//     todo: 'wash dishes',
+//     completed: false,
+//     owner_id: 2
+//   };
+
+//   const expectedAllTodos = [{
+//     id: 4,
+//     todo: 'wash dishes',
+//     completed: false,
+//     owner_id: 2
+//   }];
+
+//   const data = await fakeRequest(app)
+//     .put('/api/todos/4')
+//     .send(newTodo)
+//     .set('Authorization', token)
+//     .expect('Content-Type', /json/)
+//     .expect(200);
+
+//   const allTodos = await fakeRequest(app)
+//     .get('/api/todos')
+//     .send(newTodo)
+//     .set('Authorization', token)
+//     .expect('Content-Type', /json/)
+//     .expect(200);
+
+//   expect(data.body).toEqual(newTodo);
+//   expect(allTodos.body).toEqual(expectedAllTodos);
+
+//   done();
